@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package mlservice.v1;
+
+// PredictionService exposes health and prediction endpoints for the ML model.
+service PredictionService {
+  // Health returns the service status and the current model version.
+  rpc Health(HealthRequest) returns (HealthResponse);
+
+  // Predict returns a class label and confidence for the given feature vector.
+  rpc Predict(PredictRequest) returns (PredictResponse);
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  string status = 1;
+  string modelVersion = 2;
+}
+
+message PredictRequest {
+  repeated double features = 1;
+}
+
+message PredictResponse {
+  string prediction = 1;
+  double confidence = 2;
+  string modelVersion = 3;
+}
