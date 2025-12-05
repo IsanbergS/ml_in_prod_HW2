@@ -1,31 +1,31 @@
 # gRPC ML Service
 
-Минимальный gRPC‑сервис для инференса обученной модели c эндпоинтами `/health` и `/predict`. Репозиторий содержит готовую модель (`models/model.pkl`), Python‑реализацию сервера и клиента, а также Dockerfile для сборки образа.
+Minimal gRPC service with two endpoints: `/health` (status + model version) and `/predict` (class label + confidence). Uses a tiny scikit-learn logistic regression model stored at `models/model.pkl`. Dockerfile included for containerized run.
 
-## Стек и окружение
-- Python 3.11 (для локального запуска достаточно 3.9+)
-- gRPC (`grpcio`, `grpcio-tools`)
-- Scikit-learn (dummy‑модель logistic regression)
+## Requirements
+- Python 3.11+ (3.9+ should work)
+- grpcio, grpcio-tools
+- scikit-learn, numpy, joblib
 
-## Переменные окружения
-- `PORT` — порт сервера (по умолчанию `50051`)
-- `MODEL_PATH` — путь к модели (по умолчанию `models/model.pkl`)
-- `MODEL_VERSION` — версия модели (по умолчанию `v0.0.0`, в Docker — `v1.0.0`)
-- `GRPC_SERVER` — адрес сервера для клиента (по умолчанию `localhost:50051`)
-- `PREDICT_FEATURES` — список фич через запятую для клиента (по умолчанию `0.5,-1.2,0.3,1.1`)
+## Environment variables
+- `PORT` — gRPC port (default `50051`)
+- `MODEL_PATH` — path to model file (default `models/model.pkl`)
+- `MODEL_VERSION` — model version string (default `v0.0.0`, in Docker `v1.0.0`)
+- `GRPC_SERVER` — client target, host:port (default `localhost:50051`)
+- `PREDICT_FEATURES` — comma-separated features for client (default `0.5,-1.2,0.3,1.1`)
 
-## Локальный запуск
+## Local run
 ```bash
+python -m venv .venv
+# Windows: .venv\Scripts\activate   |  Linux/mac: source .venv/bin/activate
 pip install -r requirements.txt
-# (опционально) переобучить dummy-модель
-py -3 scripts/train_dummy_model.py
-# запустить сервер
-py -3 -m server.server
-# в новом терминале дернуть клиент
-py -3 -m client.client
+python -m scripts.train_dummy_model       # (optional) re-train model.pkl
+python -m server.server                   # start gRPC server on PORT
+# in another shell
+python -m client.client                   # calls /health and /predict
 ```
 
-Ожидаемый вывод клиента:
+Example output:
 ```
 Calling /health...
 {"status": "ok", "modelVersion": "v0.0.0"}
@@ -33,35 +33,33 @@ Calling /predict...
 {"prediction": "1", "confidence": 0.9, "modelVersion": "v0.0.0"}
 ```
 
-## Проверка через grpcurl
+### grpcurl
 ```bash
 grpcurl -plaintext localhost:50051 mlservice.v1.PredictionService/Health
 grpcurl -plaintext -d "{\"features\":[0.5,-1.2,0.3,1.1]}" \
   localhost:50051 mlservice.v1.PredictionService/Predict
 ```
 
-## Сборка и запуск Docker
+## Docker
 ```bash
 docker build -t grpc-ml-service .
 docker run -p 50051:50051 grpc-ml-service
-# после старта проверяем
-grpcurl -plaintext localhost:50051 mlservice.v1.PredictionService/Health
-py -3 -m client.client  # или свой grpcurl
+# then call grpcurl or python -m client.client
 ```
 
-## Генерация gRPC stubs из proto
-Файлы `protos/model_pb2.py` и `protos/model_pb2_grpc.py` уже сгенерированы. При изменении контракта перегенерируйте их:
+## Regenerating stubs from proto
+Generated files `protos/model_pb2.py` and `protos/model_pb2_grpc.py` are committed. To regenerate:
 ```bash
-py -3 -m grpc_tools.protoc -I=protos \
+python -m grpc_tools.protoc -I=protos \
   --python_out=protos --grpc_python_out=protos protos/model.proto
 ```
 
-## Структура
+## Project layout
 ```
-protos/          # model.proto + сгенерированные stubs
-server/          # gRPC сервер (python -m server.server)
-client/          # простой клиент для health/predict
-models/          # готовая модель model.pkl
-scripts/         # train_dummy_model.py для пересоздания модели
-Dockerfile       # сборка slim-образа
+protos/          # model.proto + generated stubs
+server/          # gRPC server (python -m server.server)
+client/          # simple client for health/predict
+models/          # serialized model.pkl
+scripts/         # train_dummy_model.py to rebuild model
+Dockerfile       # slim image with server entrypoint
 ```
